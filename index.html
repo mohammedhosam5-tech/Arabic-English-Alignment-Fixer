@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Arabic/English Alignment Fixer</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--tx:#14181f;--mut:#5b6472;--bd:#d9dde3;--ac:#1f6feb;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1218;--card:#181c24;--tx:#e8ebf0;--mut:#98a1b0;--bd:#2c3340;--ac:#5b9bff}}
+:root[data-theme="dark"]{--bg:#0f1218;--card:#181c24;--tx:#e8ebf0;--mut:#98a1b0;--bd:#2c3340;--ac:#5b9bff}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.6 system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif}
+main{max-width:860px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:1.3rem;margin:0 0 4px}
+p.s{color:var(--mut);margin:0 0 16px;font-size:.92rem}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:14px;margin-bottom:14px}
+label{display:block;font-weight:600;font-size:.85rem;margin-bottom:6px;color:var(--mut)}
+textarea,.out{width:100%;box-sizing:border-box;min-height:150px;padding:10px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit;resize:vertical}
+.out{white-space:pre-wrap;direction:rtl;text-align:right;overflow-wrap:anywhere}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px}
+button{background:var(--ac);color:#fff;border:0;border-radius:8px;padding:9px 16px;font:inherit;font-weight:600;cursor:pointer}
+button.g{background:transparent;color:var(--tx);border:1px solid var(--bd)}
+.opt{font-size:.88rem;display:flex;gap:6px;align-items:center;font-weight:400;margin:0;color:var(--tx)}
+#st{color:var(--mut);font-size:.85rem}
+</style>
+</head>
+<body>
+<main>
+<h1>Arabic / English Alignment Fixer</h1>
+<p class="s">Paste mixed text. Every English/number phrase gets locked as its own left-to-right block inside a right-to-left line, so the order reads correctly everywhere you paste it.</p>
+
+<div class="card">
+<label for="in">Input</label>
+<textarea id="in" dir="auto"></textarea>
+<div class="row">
+<button id="fix">Fix alignment</button>
+<button class="g" id="clr">Clear</button>
+<label class="opt"><input type="checkbox" id="live" checked> Live</label>
+<label class="opt"><input type="checkbox" id="wrap" checked> Force each line RTL</label>
+</div>
+</div>
+
+<div class="card">
+<label>Result (preview)</label>
+<div class="out" id="out"></div>
+<div class="row">
+<button id="cp">Copy fixed text</button>
+<span id="st"></span>
+</div>
+</div>
+</main>
+<script>
+const LRI="\u2066",RLI="\u2067",PDI="\u2069";
+const CTRL=/[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
+const ARABIC=/[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
+// Latin/number phrase: tokens joined by spaces or by standalone operators (= + - /)
+const TOK="[+\\-]?[A-Za-z0-9][A-Za-z0-9_+\\-=/.%#&@'()]*";
+const RUN=new RegExp(TOK+"(?:\\s+(?:[=+\\-/]\\s+)?"+TOK+")*","g");
+
+function fixLine(line,force){
+  if(!line.trim())return line;
+  // strip trailing punctuation glued to Latin run so it stays in RTL flow
+  let s=line.replace(RUN,m=>{
+    const t=m.match(/^(.*?)([.,;:!?)]*)$/s);
+    let core=t[1],tail=t[2];
+    // balance parentheses: unmatched ")" belongs to outside
+    while(core.endsWith(")")&&(core.match(/\(/g)||[]).length<(core.match(/\)/g)||[]).length){tail=")"+tail;core=core.slice(0,-1)}
+    return LRI+core+PDI+tail;
+  });
+  if(force||ARABIC.test(line))s=RLI+s+PDI;
+  return s;
+}
+function fix(txt,force){
+  return txt.replace(CTRL,"").split("\n").map(l=>fixLine(l,force)).join("\n");
+}
+const $=id=>document.getElementById(id);
+function run(){
+  $("out").textContent=fix($("in").value,$("wrap").checked);
+}
+$("in").value="الكتابة بال English والتحويل الي عربي";
+$("fix").onclick=run;
+$("clr").onclick=()=>{$("in").value="";run()};
+$("in").addEventListener("input",()=>{if($("live").checked)run()});
+$("wrap").onchange=run;
+$("cp").onclick=async()=>{
+  const t=$("out").textContent;
+  try{await navigator.clipboard.writeText(t);$("st").textContent="Copied."}
+  catch(e){const r=document.createRange();r.selectNodeContents($("out"));const sel=getSelection();sel.removeAllRanges();sel.addRange(r);$("st").textContent="Selected. Press Ctrl/Cmd+C."}
+  setTimeout(()=>$("st").textContent="",2500);
+};
+run();
+</script>
+</body>
+</html>
